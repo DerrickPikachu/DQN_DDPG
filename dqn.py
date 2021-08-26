@@ -62,7 +62,7 @@ class DQN:
         self._target_net.load_state_dict(self._behavior_net.state_dict())
         ## TODO ##
         # self._optimizer = ?
-        raise NotImplementedError
+        # raise NotImplementedError
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
 
@@ -75,8 +75,16 @@ class DQN:
 
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
-         ## TODO ##
-        raise NotImplementedError
+         ## TODO: Select an action from the action space
+        q_values = self._behavior_net(state.type(torch.float))
+        print(q_values)
+        sample = random.random()
+        eps_threshold = 1. - action_space.n * epsilon
+
+        if sample < eps_threshold:
+            return q_values.argmax().item()
+        else:
+            return random.randrange(0, action_space.n)
 
     # Append the memory tuple into memory
     def append(self, state, action, reward, next_state, done):
@@ -233,5 +241,41 @@ def main():
     test(args, env, agent, writer)
 
 
+def test_function():
+    ## arguments ##
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-d', '--device', default='cuda')
+    parser.add_argument('-m', '--model', default='dqn.pth')
+    parser.add_argument('--logdir', default='log/dqn')
+    # train
+    parser.add_argument('--warmup', default=10000, type=int)
+    parser.add_argument('--episode', default=1200, type=int)
+    parser.add_argument('--capacity', default=10000, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--lr', default=.0005, type=float)
+    parser.add_argument('--eps_decay', default=.995, type=float)
+    parser.add_argument('--eps_min', default=.01, type=float)
+    parser.add_argument('--gamma', default=.99, type=float)
+    parser.add_argument('--freq', default=4, type=int)
+    parser.add_argument('--target_freq', default=1000, type=int)
+    # test
+    parser.add_argument('--test_only', action='store_true')
+    parser.add_argument('--render', action='store_true')
+    parser.add_argument('--seed', default=20200519, type=int)
+    parser.add_argument('--test_epsilon', default=.001, type=float)
+    args = parser.parse_args()
+
+    state = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8]).to(args.device).type(torch.float)
+    env = gym.make('LunarLander-v2')
+    action_space = env.action_space
+    epsilon = 0.1
+
+    dqn = DQN(args)
+    for i in range(10):
+        print(dqn.select_action(state, epsilon, action_space))
+
+
 if __name__ == '__main__':
-    main()
+    # main()
+    test_function()
+
