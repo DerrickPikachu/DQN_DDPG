@@ -41,10 +41,14 @@ class Net(nn.Module):
         self.main = nn.Sequential(
             # Input
             nn.Linear(in_features=state_dim, out_features=hidden_dim),
+            nn.ReLU(),
             # Hidden
             nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
+            nn.ReLU(),
             nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
+            nn.ReLU(),
             nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
+            nn.ReLU(),
             # Output
             nn.Linear(in_features=hidden_dim, out_features=action_dim)
         )
@@ -60,11 +64,14 @@ class DQN:
         self._target_net = Net().to(args.device)
         # initialize target network
         self._target_net.load_state_dict(self._behavior_net.state_dict())
-        ## TODO ##
-        # self._optimizer = ?
-        # raise NotImplementedError
+        ## TODO: Choose a optimizer, need survey RMSprop
+        self._optimizer = torch.optim.RMSprop(
+            self._behavior_net.parameters(),
+            lr=args.lr)
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
+        # Loss function
+        self._criterion = torch.nn.MSELoss()
 
         ## config ##
         self.device = args.device
@@ -76,10 +83,9 @@ class DQN:
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
          ## TODO: Select an action from the action space
-        q_values = self._behavior_net(state.type(torch.float))
-        print(q_values)
+        q_values = self._behavior_net(state)
         sample = random.random()
-        eps_threshold = 1. - action_space.n * epsilon
+        eps_threshold = 1. - epsilon
 
         if sample < eps_threshold:
             return q_values.argmax().item()
@@ -102,14 +108,29 @@ class DQN:
         state, action, reward, next_state, done = self._memory.sample(
             self.batch_size, self.device)
 
-        ## TODO ##
-        # q_value = ?
-        # with torch.no_grad():
-        #    q_next = ?
-        #    q_target = ?
-        # criterion = ?
-        # loss = criterion(q_value, q_target)
-        raise NotImplementedError
+        ## TODO: Calculate (reward + gamma * argmax(TargetQ(next_s,a)) - BehaviorQ(s,a))
+        batch_size = self.batch_size
+        non_final_mask = torch.ones(batch_size, dtype=torch.bool)  # B x
+        for i in range(batch_size):
+            non_final_mask[i] = True if done[i].item() == 0 else False
+
+        # B x state_dim
+        non_final_next_state = torch.tensor([], device=self.device)
+        for i in range(batch_size):
+            if done[i].item() == 0:
+                non_final_next_state = torch.cat(
+                    (non_final_next_state, next_state[i].view(1, -1)), dim=0)
+                # non_final_state_num x state_dim
+        # B x 1
+        q_value = self._behavior_net(state).gather(1, action.type(torch.long))
+        with torch.no_grad():
+            q_next = torch.zeros(batch_size, device=self.device,
+                                   dtype=torch.float)
+            # non_final_state_num x 1
+            q_next[non_final_mask] = self._target_net(non_final_next_state).max(1)[0]
+            q_target = reward + gamma * q_next.view(-1, 1)  # B x 1
+        criterion = nn.SmoothL1Loss()
+        loss = criterion(q_value, q_target)
         # optimize
         self._optimizer.zero_grad()
         loss.backward()
@@ -118,8 +139,8 @@ class DQN:
 
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
-        ## TODO ##
-        raise NotImplementedError
+        ## TODO: Update target network
+        self._target_net.load_state_dict(self._behavior_net.state_dict())
 
     def save(self, model_path, checkpoint=False):
         if checkpoint:
@@ -149,7 +170,8 @@ def train(args, env, agent, writer):
     ewma_reward = 0
     for episode in range(args.episode):
         total_reward = 0
-        state = env.reset()
+        state = env.reset()  # state is numpy.ndarray
+        state = torch.from_numpy(state).to(args.device).type(torch.float)
         for t in itertools.count(start=1):
             # select action
             if total_steps < args.warmup:
@@ -157,9 +179,12 @@ def train(args, env, agent, writer):
                 action = action_space.sample()
             else:
                 action = agent.select_action(state, epsilon, action_space)
+                # Do the epsilon decrease
                 epsilon = max(epsilon * args.eps_decay, args.eps_min)
             # execute action
             next_state, reward, done, _ = env.step(action)
+            next_state = torch.from_numpy(next_state)\
+                .to(args.device).type(torch.float)
             # store transition
             agent.append(state, action, reward, next_state, done)
             if total_steps >= args.warmup:
@@ -194,12 +219,21 @@ def test(args, env, agent, writer):
         total_reward = 0
         env.seed(seed)
         state = env.reset()
-        ## TODO ##
-        # ...
-        #     if done:
-        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
-        #         ...
-        raise NotImplementedError
+        state = torch.from_numpy(state).to(args.device).type(torch.float)
+        ## TODO: Complete the test episode loop
+        for t in itertools.count(start=1):
+            # Select action
+            action = agent.select_action(state, epsilon, action_space)
+            # Observe next state and reward
+            next_state, reward, done, _ = env.step(action)
+            next_state = state.to(args.device).type(torch.float)
+            total_reward += reward
+            state = next_state
+            if done:
+                # The episode is end
+                writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                rewards.append(total_reward)
+                break
     print('Average Reward', np.mean(rewards))
     env.close()
 
@@ -276,6 +310,6 @@ def test_function():
 
 
 if __name__ == '__main__':
-    # main()
-    test_function()
+    main()
+    # test_function()
 
