@@ -248,19 +248,19 @@ def main():
     parser.add_argument('--logdir', default='log/dqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=1200, type=int)
+    parser.add_argument('--episode', default=3000, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
-    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
     parser.add_argument('--eps_decay', default=.995, type=float)
     parser.add_argument('--eps_min', default=.01, type=float)
-    parser.add_argument('--gamma', default=.99, type=float)
+    parser.add_argument('--gamma', default=.80, type=float)
     parser.add_argument('--freq', default=4, type=int)
     parser.add_argument('--target_freq', default=1000, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--seed', default=20217841, type=int)
+    parser.add_argument('--seed', default=20257841, type=int)
     parser.add_argument('--test_epsilon', default=.001, type=float)
     args = parser.parse_args()
 
@@ -297,8 +297,8 @@ def test_function():
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--seed', default=20200519, type=int)
-    parser.add_argument('--test_epsilon', default=.001, type=float)
+    parser.add_argument('--seed', default=21211619, type=int)
+    parser.add_argument('--test_epsilon', default=.0001, type=float)
     args = parser.parse_args()
 
     state = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8]).to(args.device).type(torch.float)
