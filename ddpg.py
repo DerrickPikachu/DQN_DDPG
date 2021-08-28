@@ -38,19 +38,34 @@ class ReplayMemory:
 
     def sample(self, batch_size, device):
         '''sample a batch of transition tensors'''
-        ## TODO ##
-        raise NotImplementedError
+        ## TODO: Sample a batch of experience for update
+        transitions = random.sample(self.buffer, batch_size)
+        experience = []
+        for x in zip(*transitions):
+            experience.append(torch.tensor(x, dtype=torch.float, device=device))
+        return tuple(experience)
 
 
 class ActorNet(nn.Module):
     def __init__(self, state_dim=8, action_dim=2, hidden_dim=(400, 300)):
         super().__init__()
-        ## TODO ##
-        raise NotImplementedError
+        ## TODO: Build the network structure of actor
+        self.main = nn.Sequential(
+            # Input layer
+            nn.Linear(in_features=state_dim, out_features=hidden_dim[0]),
+            nn.ReLU(),
+            # Hidden layer
+            nn.Linear(in_features=hidden_dim[0], out_features=hidden_dim[1]),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_dim[1], out_features=hidden_dim[1]),
+            nn.ReLU(),
+            # Output layer
+            nn.Linear(in_features=hidden_dim[1], out_features=action_dim)
+        )
 
     def forward(self, x):
-        ## TODO ##
-        raise NotImplementedError
+        ## TODO: Complete the forward pass of actor
+        return self.main(x)
 
 
 class CriticNet(nn.Module):
@@ -83,10 +98,11 @@ class DDPG:
         # initialize target network
         self._target_actor_net.load_state_dict(self._actor_net.state_dict())
         self._target_critic_net.load_state_dict(self._critic_net.state_dict())
-        ## TODO ##
-        # self._actor_opt = ?
-        # self._critic_opt = ?
-        raise NotImplementedError
+        ## TODO: Choose the optimizer for actor and critic
+        self._actor_opt = torch.optim.Adam(self._actor_net.parameters(),
+                                           lr=args.lra)
+        self._critic_opt = torch.optim.Adam(self._actor_net.parameters(),
+                                            lr=args.lrc)
         # action noise
         self._action_noise = GaussianNoise(dim=2)
         # memory
@@ -100,8 +116,14 @@ class DDPG:
 
     def select_action(self, state, noise=True):
         '''based on the behavior (actor) network and exploration noise'''
-        ## TODO ##
-        raise NotImplementedError
+        ## TODO: Select an action according to actor
+        state = torch.from_numpy(state).type(torch.float).to(self.device)
+        actor_choice = self._actor_net(state)
+        if noise:
+            sample_noise = self._action_noise.sample()
+            actor_choice += torch.from_numpy(sample_noise)\
+                .type(torch.float).to(self.device)
+        return actor_choice.detach().cpu().numpy()
 
     def append(self, state, action, reward, next_state, done):
         self._memory.append(state, action, [reward / 100], next_state,
@@ -117,7 +139,8 @@ class DDPG:
                                     self.tau)
 
     def _update_behavior_network(self, gamma):
-        actor_net, critic_net, target_actor_net, target_critic_net = self._actor_net, self._critic_net, self._target_actor_net, self._target_critic_net
+        actor_net, critic_net, target_actor_net, target_critic_net =\
+            self._actor_net, self._critic_net, self._target_actor_net, self._target_critic_net
         actor_opt, critic_opt = self._actor_opt, self._critic_opt
 
         # sample a minibatch of transitions
@@ -126,15 +149,25 @@ class DDPG:
 
         ## update critic ##
         # critic loss
-        ## TODO ##
-        # q_value = ?
-        # with torch.no_grad():
-        #    a_next = ?
-        #    q_next = ?
-        #    q_target = ?
-        # criterion = ?
-        # critic_loss = criterion(q_value, q_target)
-        raise NotImplementedError
+        ## TODO: Update critic(Need Test)
+
+        # # Build mask
+        # non_final_mask = torch.ones_like(done, dtype=torch.bool, device=self.device)
+        # for i in range(self.batch_size):
+        #     non_final_mask = True if done[i].tiem() == 0 else False
+        # # Filter final next state
+        # non_final_next_state = torch.tensor(
+        #     [next_state[i] for i in range(self.batch_size)
+        #      if done[i].item() == 0]
+        # )
+
+        q_value = self._critic_net(state, action)
+        with torch.no_grad():
+           a_next = self._target_actor_net(next_state)
+           q_next = self._target_critic_net(next_state, a_next)
+           q_target = reward + gamma * (1 - done) * q_next
+        criterion = nn.MSELoss()
+        critic_loss = criterion(q_value, q_target)
         # optimize critic
         actor_net.zero_grad()
         critic_net.zero_grad()
@@ -143,10 +176,9 @@ class DDPG:
 
         ## update actor ##
         # actor loss
-        ## TODO ##
-        # action = ?
-        # actor_loss = ?
-        raise NotImplementedError
+        ## TODO: Update actor
+        action = self._actor_net(state)
+        actor_loss = (-self._critic_net(state, action)).mean()
         # optimize actor
         actor_net.zero_grad()
         critic_net.zero_grad()
@@ -157,8 +189,10 @@ class DDPG:
     def _update_target_network(target_net, net, tau):
         '''update target network by _soft_ copying from behavior network'''
         for target, behavior in zip(target_net.parameters(), net.parameters()):
-            ## TODO ##
-            raise NotImplementedError
+            ## TODO: Update target
+            target.data.copy_(
+                target.data * (1. - tau) + behavior.data * tau
+            )
 
     def save(self, model_path, checkpoint=False):
         if checkpoint:
@@ -199,6 +233,7 @@ def train(args, env, agent, writer):
         for t in itertools.count(start=1):
             # select action
             if total_steps < args.warmup:
+                # In the beginning, select the action from random policy
                 action = env.action_space.sample()
             else:
                 action = agent.select_action(state)
@@ -207,6 +242,7 @@ def train(args, env, agent, writer):
             # store transition
             agent.append(state, action, reward, next_state, done)
             if total_steps >= args.warmup:
+                # After finishing warmup, start to update the behavior network
                 agent.update()
 
             state = next_state
