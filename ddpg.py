@@ -60,7 +60,8 @@ class ActorNet(nn.Module):
             nn.Linear(in_features=hidden_dim[1], out_features=hidden_dim[1]),
             nn.ReLU(),
             # Output layer
-            nn.Linear(in_features=hidden_dim[1], out_features=action_dim)
+            nn.Linear(in_features=hidden_dim[1], out_features=action_dim),
+            nn.Tanh()
         )
 
     def forward(self, x):
@@ -101,7 +102,7 @@ class DDPG:
         ## TODO: Choose the optimizer for actor and critic
         self._actor_opt = torch.optim.Adam(self._actor_net.parameters(),
                                            lr=args.lra)
-        self._critic_opt = torch.optim.Adam(self._actor_net.parameters(),
+        self._critic_opt = torch.optim.Adam(self._critic_net.parameters(),
                                             lr=args.lrc)
         # action noise
         self._action_noise = GaussianNoise(dim=2)
@@ -149,18 +150,7 @@ class DDPG:
 
         ## update critic ##
         # critic loss
-        ## TODO: Update critic(Need Test)
-
-        # # Build mask
-        # non_final_mask = torch.ones_like(done, dtype=torch.bool, device=self.device)
-        # for i in range(self.batch_size):
-        #     non_final_mask = True if done[i].tiem() == 0 else False
-        # # Filter final next state
-        # non_final_next_state = torch.tensor(
-        #     [next_state[i] for i in range(self.batch_size)
-        #      if done[i].item() == 0]
-        # )
-
+        ## TODO: Update critic
         q_value = self._critic_net(state, action)
         with torch.no_grad():
            a_next = self._target_actor_net(next_state)
@@ -271,11 +261,19 @@ def test(args, env, agent, writer):
         env.seed(seed)
         state = env.reset()
         ## TODO ##
-        # ...
-        #     if done:
-        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
-        #         ...
-        raise NotImplementedError
+        for t in itertools.count(start=1):
+            # Select action
+            action = agent.select_action(state, False)
+            # Next state and reward
+            next_state, reward, done, _ = env.step(action)
+            total_reward += reward
+            state = next_state
+
+            if done:
+                writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                rewards.append(total_reward)
+                print(total_reward)
+                break
     print('Average Reward', np.mean(rewards))
     env.close()
 
@@ -288,7 +286,7 @@ def main():
     parser.add_argument('--logdir', default='log/ddpg')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=1200, type=int)
+    parser.add_argument('--episode', default=2000, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--capacity', default=500000, type=int)
     parser.add_argument('--lra', default=1e-3, type=float)

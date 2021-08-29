@@ -70,8 +70,6 @@ class DQN:
             lr=args.lr)
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
-        # Loss function
-        self._criterion = torch.nn.MSELoss()
 
         ## config ##
         self.device = args.device
@@ -128,7 +126,9 @@ class DQN:
                                    dtype=torch.float)
             # non_final_state_num x 1
             q_next[non_final_mask] = self._target_net(non_final_next_state).max(1)[0]
-            q_target = reward + gamma * q_next.view(-1, 1)  # B x 1
+            q_target = reward + gamma * q_next.view(-1, 1)
+            # q_next_ = self._target_net(state).max(1)[0]
+            # q_target_ = reward + gamma * (1 - done) * q_next.view(-1, 1)  # B x 1
         criterion = nn.SmoothL1Loss()
         loss = criterion(q_value, q_target)
         # optimize
@@ -248,7 +248,7 @@ def main():
     parser.add_argument('--logdir', default='log/dqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=3000, type=int)
+    parser.add_argument('--episode', default=1200, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
@@ -256,7 +256,7 @@ def main():
     parser.add_argument('--eps_min', default=.01, type=float)
     parser.add_argument('--gamma', default=.99, type=float)
     parser.add_argument('--freq', default=4, type=int)
-    parser.add_argument('--target_freq', default=1000, type=int)
+    parser.add_argument('--target_freq', default=100, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
