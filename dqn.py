@@ -107,28 +107,14 @@ class DQN:
             self.batch_size, self.device)
 
         ## TODO: Calculate (reward + gamma * argmax(TargetQ(next_s,a)) - BehaviorQ(s,a))
-        batch_size = self.batch_size
-        non_final_mask = torch.ones(batch_size, dtype=torch.bool)  # B x
-        for i in range(batch_size):
-            non_final_mask[i] = True if done[i].item() == 0 else False
-
-        # B x state_dim
-        non_final_next_state = torch.tensor([], device=self.device)
-        for i in range(batch_size):
-            if done[i].item() == 0:
-                non_final_next_state = torch.cat(
-                    (non_final_next_state, next_state[i].view(1, -1)), dim=0)
-                # non_final_state_num x state_dim
         # B x 1
         q_value = self._behavior_net(state).gather(1, action.type(torch.long))
+        # DDQN
+        next_action = self._behavior_net(next_state).argmax(dim=1).view(-1, 1)
         with torch.no_grad():
-            q_next = torch.zeros(batch_size, device=self.device,
-                                   dtype=torch.float)
-            # non_final_state_num x 1
-            q_next[non_final_mask] = self._target_net(non_final_next_state).max(1)[0]
-            q_target = reward + gamma * q_next.view(-1, 1)
-            # q_next_ = self._target_net(state).max(1)[0]
-            # q_target_ = reward + gamma * (1 - done) * q_next.view(-1, 1)  # B x 1
+            # q_next_ = self._target_net(next_state).max(1)[0]
+            q_next = self._target_net(next_state).gather(1, next_action.type(torch.long))
+            q_target = reward + gamma * (1 - done) * q_next.view(-1, 1)  # B x 1
         criterion = nn.SmoothL1Loss()
         loss = criterion(q_value, q_target)
         # optimize
@@ -256,7 +242,7 @@ def main():
     parser.add_argument('--eps_min', default=.01, type=float)
     parser.add_argument('--gamma', default=.99, type=float)
     parser.add_argument('--freq', default=4, type=int)
-    parser.add_argument('--target_freq', default=100, type=int)
+    parser.add_argument('--target_freq', default=1000, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
