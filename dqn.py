@@ -109,11 +109,11 @@ class DQN:
         ## TODO: Calculate (reward + gamma * argmax(TargetQ(next_s,a)) - BehaviorQ(s,a))
         # B x 1
         q_value = self._behavior_net(state).gather(1, action.type(torch.long))
-        # DDQN
-        next_action = self._behavior_net(next_state).argmax(dim=1).view(-1, 1)
         with torch.no_grad():
-            # q_next_ = self._target_net(next_state).max(1)[0]
-            q_next = self._target_net(next_state).gather(1, next_action.type(torch.long))
+            # DDQN
+            # next_action = self._behavior_net(next_state).argmax(dim=1).view(-1, 1)
+            q_next = self._target_net(next_state).max(1)[0]
+            # q_next = self._target_net(next_state).gather(1, next_action.type(torch.long))
             q_target = reward + gamma * (1 - done) * q_next.view(-1, 1)  # B x 1
         criterion = nn.SmoothL1Loss()
         loss = criterion(q_value, q_target)
@@ -246,7 +246,7 @@ def main():
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--seed', default=20257841, type=int)
+    parser.add_argument('--seed', default=23214551, type=int)
     parser.add_argument('--test_epsilon', default=.001, type=float)
     args = parser.parse_args()
 
